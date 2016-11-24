@@ -1,0 +1,70 @@
+---
+title: "Scenario Checking"
+author: "Michael C Sachs"
+date: "July 12, 2016"
+output: 
+    html_document:
+      keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("../Run/simulate-data.R")
+library(pseval)
+library(ggplot2)
+library(purrr)
+library(knitr)
+```
+
+## Check correlation
+
+```{r res, echo = FALSE, results = 'asis'}
+pees <- list(NA, NA, NA, NA, NA)
+for(i in 1:5){
+  
+  ThisS <- sort(runif(500, 0, 3.5))
+
+  test <- simulate_scen(i)
+  
+  test %>% group_by(trial) %>% summarize(bip.cor = map_dbl(data, ~ 
+                                                         { with(., cor(BIP, S.obs, use = "pairwise")) })) %>% 
+    kable %>% print
+  
+  
+  cat('\n \n')
+  
+  tite <- paste("Scenario", i)
+  true.cep <- true_cep(i, Sobs = lapply(1:12, function(i) ThisS))
+  bound <- map2(true.cep$trial, true.cep$data, function(i, d) cbind(trial = i, d)) %>% bind_rows
+  
+  pees[[i]] <- ggplot(bound, aes(x = S.1, y = VE, group = trial)) + geom_line() + ggtitle(tite) + ylab("minus log relative risk")
+  
+}
+
+library(gridExtra)
+pdf("true-scens.pdf", height = 7.5, width = 6.5)
+grid.arrange(grobs = pees, nrow = 3, ncol = 2)
+dev.off()
+```
+
+
+```{r plotsdata, echo = FALSE, eval = FALSE}
+set.seed(453)
+for(i in 1:5) {
+  
+  tite <- paste("Scenario", i)
+  test <- simulate_scen(i)
+
+  bytrial <- analyze_bytrial(test)
+  overall <- analyze_overall(test)
+  
+  bytrialVE <- bytrial %>% group_by(trial) %>% do(calc_risk(.$pseval[[1]], n.samps = 500))
+  
+  print(ggplot(calc_risk(overall$pseval, n.samps = 500), aes(x = S.1, y = Y)) + geom_line(size = 2, color = "blue") +
+    geom_line(data = bytrialVE, aes(group = trial), size = 1, color = "grey50") + 
+    ggtitle(tite))
+  
+}
+```
+
+
